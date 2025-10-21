@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>News Aggregator by Date</title>
+<title>News Aggregator with Reliable Images</title>
 <style>
 body { font-family: Arial, sans-serif; margin:0; background:#f4f6fb; color:#111; }
 header { background:#1a1a1a; color:white; padding:16px; text-align:center; }
@@ -23,7 +23,7 @@ main { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); 
 </head>
 <body>
 <header>
-<h1>News Aggregator by Date</h1>
+<h1>News Aggregator</h1>
 </header>
 
 <div id="controls">
@@ -65,43 +65,51 @@ function debounce(fn, delay){
   return function(...args){ clearTimeout(timeout); timeout=setTimeout(()=>fn.apply(this,args), delay); };
 }
 
-// Fetch feed and extract image & date
+// Helper: extract first valid image
+function extractImage(item, feedId){
+  let img=null;
+  // 1. enclosure
+  const enclosure=item.querySelector('enclosure[url]');
+  if(enclosure) img=enclosure.getAttribute('url');
+  // 2. media:content
+  if(!img){
+    const media=item.getElementsByTagNameNS('*','content')[0];
+    if(media && media.getAttribute('url')) img=media.getAttribute('url');
+  }
+  // 3. first image in description
+  if(!img){
+    const desc=item.querySelector('description')?.textContent || '';
+    const match = desc.match(/<img[^>]+(src|data-src)="([^">]+)"/i);
+    if(match) img = match[2];
+  }
+  // 4. make relative URLs absolute for certain feeds
+  if(img){
+    if(feedId==='BBC'){
+      if(img.startsWith('//')) img='https:'+img;
+      else if(img.startsWith('/')) img='https://www.bbc.co.uk'+img;
+    } else if(feedId==='CNN'){
+      if(img.startsWith('//')) img='https:'+img;
+      else if(img.startsWith('/')) img='https://www.cnn.com'+img;
+    }
+  }
+  return img || 'https://via.placeholder.com/400x200?text=No+Image';
+}
+
+// Fetch feed
 async function fetchFeed(feed){
   try{
-    const res=await fetch(proxy+encodeURIComponent(feed.url));
-    const text=await res.text();
-    const parser=new DOMParser();
-    const xml=parser.parseFromString(text,"application/xml");
-    const items=Array.from(xml.querySelectorAll('item')).map(item=>{
-      let img=null;
-      // enclosure
-      const enclosure=item.querySelector('enclosure[url]');
-      if(enclosure) img=enclosure.getAttribute('url');
-      else {
-        // media:content
-        const media=item.getElementsByTagNameNS('*','content')[0];
-        if(media && media.getAttribute('url')) img=media.getAttribute('url');
-        else {
-          // first image in description
-          const desc=item.querySelector('description')?.textContent||'';
-          const match=desc.match(/<img[^>]+src="([^">]+)"/i);
-          if(match){
-            img=match[1];
-            // Make BBC relative URLs absolute
-            if(feed.id==='BBC'){
-              if(img.startsWith('//')) img='https:'+img;
-              else if(img.startsWith('/')) img='https://www.bbc.co.uk'+img;
-            }
-          }
-        }
-      }
+    const res = await fetch(proxy+encodeURIComponent(feed.url));
+    const text = await res.text();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text,"application/xml");
+    const items = Array.from(xml.querySelectorAll('item')).map(item=>{
       const pubDate = item.querySelector('pubDate')?.textContent || '';
       return {
         source:feed.id,
         title:item.querySelector('title')?.textContent || '',
         link:item.querySelector('link')?.textContent || '',
-        description:(item.querySelector('description')?.textContent||'').replace(/<\/?[^>]+(>|$)/g,''),
-        image: img || 'https://via.placeholder.com/400x200?text=No+Image',
+        description:(item.querySelector('description')?.textContent || '').replace(/<\/?[^>]+(>|$)/g,''),
+        image: extractImage(item, feed.id),
         date: pubDate ? new Date(pubDate) : new Date()
       };
     });
@@ -109,12 +117,12 @@ async function fetchFeed(feed){
   }catch(err){ console.error('Error fetching', feed.id, err); return []; }
 }
 
-// Render articles sorted by date
+// Render articles
 function renderArticles(list){
   list.sort((a,b)=>b.date-a.date);
   newsContainer.innerHTML='';
   if(list.length===0){ newsContainer.innerHTML='<p style="text-align:center;">No articles found.</p>'; return; }
-  const fragment=document.createDocumentFragment();
+  const frag=document.createDocumentFragment();
   list.forEach(a=>{
     const div=document.createElement('div');
     div.className='article';
@@ -126,9 +134,9 @@ function renderArticles(list){
         <a href="${a.link}" target="_blank">Read more</a>
         <div class="source">${a.source} | ${a.date.toLocaleString()}</div>
       </div>`;
-    fragment.appendChild(div);
+    frag.appendChild(div);
   });
-  newsContainer.appendChild(fragment);
+  newsContainer.appendChild(frag);
 }
 
 // Filter
@@ -141,18 +149,17 @@ function applyFilters(){
   renderArticles(filtered);
 }
 
-// Load all feeds and preserve selected source
+// Load all feeds
 async function loadAllFeeds(){
   const selectedSource = sourceFilter.value;
   newsContainer.innerHTML='<p style="text-align:center;">Loading news...</p>';
-  const results = await Promise.all(FEEDS.map(f => fetchFeed(f)));
+  const results = await Promise.all(FEEDS.map(f=>fetchFeed(f)));
   articles = results.flat();
-  // preserve filter
   sourceFilter.value = selectedSource;
   applyFilters();
 }
 
-// Event listeners
+// Events
 searchInput.addEventListener('input', debounce(applyFilters,300));
 sourceFilter.addEventListener('change', applyFilters);
 refreshBtn.addEventListener('click', loadAllFeeds);
