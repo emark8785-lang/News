@@ -3,160 +3,143 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Enhanced News Aggregator</title>
+<title>News Aggregator by Date</title>
 <style>
-  body { font-family: Arial, sans-serif; margin: 0; background: #f4f6fb; color: #111; }
-  header { background: #1a1a1a; color: white; padding: 16px; text-align: center; }
-  header h1 { margin: 0; }
-  #controls { margin: 16px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
-  input[type="search"] { padding: 8px; width: 250px; border-radius: 6px; border: 1px solid #ccc; }
-  select, button { padding: 8px; border-radius: 6px; border: 1px solid #ccc; }
-  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; padding: 16px; max-width: 1200px; margin: 0 auto; }
-  .article { background: white; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-  .article img { width: 100%; height: 160px; object-fit: cover; }
-  .article-content { padding: 12px; flex: 1; display: flex; flex-direction: column; }
-  .article h2 { font-size: 1rem; margin: 0 0 8px 0; flex-shrink: 0; }
-  .article p { font-size: 0.9rem; flex: 1; margin: 0 0 8px 0; }
-  .article a { align-self: flex-start; text-decoration: none; color: #1a73e8; font-weight: bold; font-size: 0.9rem; }
-  .source { font-size: 0.75rem; color: #555; margin-top: 4px; }
+body { font-family: Arial, sans-serif; margin:0; background:#f4f6fb; color:#111; }
+header { background:#1a1a1a; color:white; padding:16px; text-align:center; }
+header h1 { margin:0; }
+#controls { margin:16px; display:flex; justify-content:center; gap:8px; flex-wrap:wrap; }
+input[type="search"] { padding:8px; width:250px; border-radius:6px; border:1px solid #ccc; }
+select, button { padding:8px; border-radius:6px; border:1px solid #ccc; }
+main { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:16px; padding:16px; max-width:1200px; margin:0 auto; }
+.article { background:white; border-radius:8px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+.article img { width:100%; height:160px; object-fit:cover; }
+.article-content { padding:12px; flex:1; display:flex; flex-direction:column; }
+.article h2 { font-size:1rem; margin:0 0 8px 0; flex-shrink:0; }
+.article p { font-size:0.9rem; flex:1; margin:0 0 8px 0; }
+.article a { align-self:flex-start; text-decoration:none; color:#1a73e8; font-weight:bold; font-size:0.9rem; }
+.source { font-size:0.75rem; color:#555; margin-top:4px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Enhanced News Aggregator</h1>
+<h1>News Aggregator by Date</h1>
 </header>
 
 <div id="controls">
-  <input type="search" id="searchInput" placeholder="Search headlines...">
-  <select id="sourceFilter">
-    <option value="all">All sources</option>
-  </select>
-  <button id="refreshBtn">Refresh</button>
+<input type="search" id="searchInput" placeholder="Search headlines...">
+<select id="sourceFilter">
+<option value="all">All sources</option>
+</select>
+<button id="refreshBtn">Refresh</button>
 </div>
 
 <main id="newsContainer">
-  <p style="text-align:center; grid-column: 1/-1;">Loading news...</p>
+<p style="text-align:center; grid-column:1/-1;">Loading news...</p>
 </main>
 
 <script>
 const FEEDS = [
-  { id: 'BBC', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
-  { id: 'Reuters', url: 'https://feeds.reuters.com/reuters/topNews' },
-  { id: 'NYTimes', url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml' },
-  { id: 'CNN', url: 'http://rss.cnn.com/rss/edition.rss' },
-  { id: 'The Guardian', url: 'https://www.theguardian.com/world/rss' },
-  { id: 'Al Jazeera', url: 'https://www.aljazeera.com/xml/rss/all.xml' },
-  { id: 'Fox News', url: 'http://feeds.foxnews.com/foxnews/latest' }
+  { id:'BBC', url:'https://feeds.bbci.co.uk/news/world/rss.xml' },
+  { id:'Reuters', url:'https://feeds.reuters.com/reuters/topNews' },
+  { id:'NYTimes', url:'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml' },
+  { id:'CNN', url:'http://rss.cnn.com/rss/edition.rss' },
+  { id:'The Guardian', url:'https://www.theguardian.com/world/rss' },
+  { id:'Al Jazeera', url:'https://www.aljazeera.com/xml/rss/all.xml' },
+  { id:'Fox News', url:'http://feeds.foxnews.com/foxnews/latest' }
 ];
 
-const proxy = 'https://corsproxy.io/?';
-const newsContainer = document.getElementById('newsContainer');
-const searchInput = document.getElementById('searchInput');
-const sourceFilter = document.getElementById('sourceFilter');
-const refreshBtn = document.getElementById('refreshBtn');
+const proxy='https://corsproxy.io/?';
+const newsContainer=document.getElementById('newsContainer');
+const searchInput=document.getElementById('searchInput');
+const sourceFilter=document.getElementById('sourceFilter');
+const refreshBtn=document.getElementById('refreshBtn');
+let articles=[];
 
-let articles = [];
+// Populate source dropdown
+FEEDS.forEach(f=>{ const opt=document.createElement('option'); opt.value=f.id; opt.textContent=f.id; sourceFilter.appendChild(opt); });
 
-// Populate the source dropdown
-FEEDS.forEach(f => {
-  const opt = document.createElement('option');
-  opt.value = f.id;
-  opt.textContent = f.id;
-  sourceFilter.appendChild(opt);
-});
-
-// Debounce function
-function debounce(fn, delay) {
+// Debounce
+function debounce(fn, delay){
   let timeout;
-  return function(...args) {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => fn.apply(this, args), delay);
-  };
+  return function(...args){ clearTimeout(timeout); timeout=setTimeout(()=>fn.apply(this,args), delay); };
 }
 
-// Fetch a feed and extract title, link, description, image
-async function fetchFeed(feed) {
-  try {
-    const res = await fetch(proxy + encodeURIComponent(feed.url));
-    const text = await res.text();
-    const parser = new DOMParser();
-    const xml = parser.parseFromString(text, "application/xml");
-    const items = Array.from(xml.querySelectorAll('item')).map(item => {
-      let img = null;
-      // Try enclosure
-      const enclosure = item.querySelector('enclosure[url]');
-      if(enclosure) img = enclosure.getAttribute('url');
+// Parse feed and extract image & date
+async function fetchFeed(feed){
+  try{
+    const res=await fetch(proxy+encodeURIComponent(feed.url));
+    const text=await res.text();
+    const parser=new DOMParser();
+    const xml=parser.parseFromString(text,"application/xml");
+    const items=Array.from(xml.querySelectorAll('item')).map(item=>{
+      let img=null;
+      const enclosure=item.querySelector('enclosure[url]');
+      if(enclosure) img=enclosure.getAttribute('url');
       else {
-        // Try media:content
-        const media = item.getElementsByTagNameNS('*', 'content')[0];
-        if(media && media.getAttribute('url')) img = media.getAttribute('url');
-        else {
-          // Try first image in description
-          const desc = item.querySelector('description')?.textContent || '';
-          const match = desc.match(/<img[^>]+src="([^">]+)"/i);
-          if(match) img = match[1];
+        const media=item.getElementsByTagNameNS('*','content')[0];
+        if(media && media.getAttribute('url')) img=media.getAttribute('url');
+        else{
+          const desc=item.querySelector('description')?.textContent||'';
+          const match=desc.match(/<img[^>]+src="([^">]+)"/i);
+          if(match) img=match[1];
         }
       }
+      const pubDate = item.querySelector('pubDate')?.textContent || '';
       return {
-        source: feed.id,
-        title: item.querySelector('title')?.textContent || '',
-        link: item.querySelector('link')?.textContent || '',
-        description: (item.querySelector('description')?.textContent || '').replace(/<\/?[^>]+(>|$)/g, ''),
-        image: img
+        source:feed.id,
+        title:item.querySelector('title')?.textContent || '',
+        link:item.querySelector('link')?.textContent || '',
+        description:(item.querySelector('description')?.textContent||'').replace(/<\/?[^>]+(>|$)/g,''),
+        image: img || 'https://via.placeholder.com/400x200?text=No+Image',
+        date: pubDate ? new Date(pubDate) : new Date()
       };
     });
-    return items.filter(a => a.title && a.link);
-  } catch(err) {
-    console.error('Error fetching', feed.id, err);
-    return [];
-  }
+    return items.filter(a=>a.title && a.link);
+  }catch(err){ console.error('Error fetching', feed.id, err); return []; }
 }
 
-// Render articles
-function renderArticles(list) {
-  newsContainer.innerHTML = '';
-  if(list.length === 0){
-    newsContainer.innerHTML = '<p style="text-align:center;">No articles found.</p>';
-    return;
-  }
-  const fragment = document.createDocumentFragment();
-  list.forEach(a => {
-    const div = document.createElement('div');
-    div.className = 'article';
-    div.innerHTML = `
-      ${a.image ? `<img src="${a.image}" alt="${a.title}" loading="lazy">` : ''}
+// Render articles sorted by date
+function renderArticles(list){
+  list.sort((a,b)=>b.date-a.date); // newest first
+  newsContainer.innerHTML='';
+  if(list.length===0){ newsContainer.innerHTML='<p style="text-align:center;">No articles found.</p>'; return; }
+  const fragment=document.createDocumentFragment();
+  list.forEach(a=>{
+    const div=document.createElement('div');
+    div.className='article';
+    div.innerHTML=`
+      <img src="${a.image}" alt="${a.title}" loading="lazy">
       <div class="article-content">
         <h2>${a.title}</h2>
-        <p>${a.description.length > 150 ? a.description.slice(0,150)+'…' : a.description}</p>
+        <p>${a.description.length>150 ? a.description.slice(0,150)+'…' : a.description}</p>
         <a href="${a.link}" target="_blank">Read more</a>
-        <div class="source">${a.source}</div>
-      </div>
-    `;
+        <div class="source">${a.source} | ${a.date.toLocaleString()}</div>
+      </div>`;
     fragment.appendChild(div);
   });
   newsContainer.appendChild(fragment);
 }
 
-// Filter articles
-function applyFilters() {
-  const q = searchInput.value.toLowerCase();
-  const src = sourceFilter.value;
-  let filtered = articles;
-  if(src !== 'all') filtered = filtered.filter(a => a.source === src);
-  if(q) filtered = filtered.filter(a => a.title.toLowerCase().includes(q) || a.description.toLowerCase().includes(q));
+// Filter
+function applyFilters(){
+  const q=searchInput.value.toLowerCase();
+  const src=sourceFilter.value;
+  let filtered=articles;
+  if(src!=='all') filtered=filtered.filter(a=>a.source===src);
+  if(q) filtered=filtered.filter(a=>a.title.toLowerCase().includes(q) || a.description.toLowerCase().includes(q));
   renderArticles(filtered);
 }
 
-// Load all feeds in parallel
-async function loadAllFeeds() {
-  newsContainer.innerHTML = '<p style="text-align:center;">Loading news...</p>';
-  const results = await Promise.all(FEEDS.map(f => fetchFeed(f)));
-  articles = results.flat();
+// Load all feeds
+async function loadAllFeeds(){
+  newsContainer.innerHTML='<p style="text-align:center;">Loading news...</p>';
+  const results=await Promise.all(FEEDS.map(f=>fetchFeed(f)));
+  articles=results.flat();
   renderArticles(articles);
 }
 
-// Event listeners
-searchInput.addEventListener('input', debounce(applyFilters, 300));
+searchInput.addEventListener('input', debounce(applyFilters,300));
 sourceFilter.addEventListener('change', applyFilters);
 refreshBtn.addEventListener('click', loadAllFeeds);
 
