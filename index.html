@@ -65,7 +65,7 @@ function debounce(fn, delay){
   return function(...args){ clearTimeout(timeout); timeout=setTimeout(()=>fn.apply(this,args), delay); };
 }
 
-// Parse feed and extract image & date
+// Fetch feed and extract image & date
 async function fetchFeed(feed){
   try{
     const res=await fetch(proxy+encodeURIComponent(feed.url));
@@ -74,15 +74,25 @@ async function fetchFeed(feed){
     const xml=parser.parseFromString(text,"application/xml");
     const items=Array.from(xml.querySelectorAll('item')).map(item=>{
       let img=null;
+      // enclosure
       const enclosure=item.querySelector('enclosure[url]');
       if(enclosure) img=enclosure.getAttribute('url');
       else {
+        // media:content
         const media=item.getElementsByTagNameNS('*','content')[0];
         if(media && media.getAttribute('url')) img=media.getAttribute('url');
-        else{
+        else {
+          // first image in description
           const desc=item.querySelector('description')?.textContent||'';
           const match=desc.match(/<img[^>]+src="([^">]+)"/i);
-          if(match) img=match[1];
+          if(match){
+            img=match[1];
+            // Make BBC relative URLs absolute
+            if(feed.id==='BBC'){
+              if(img.startsWith('//')) img='https:'+img;
+              else if(img.startsWith('/')) img='https://www.bbc.co.uk'+img;
+            }
+          }
         }
       }
       const pubDate = item.querySelector('pubDate')?.textContent || '';
@@ -101,7 +111,7 @@ async function fetchFeed(feed){
 
 // Render articles sorted by date
 function renderArticles(list){
-  list.sort((a,b)=>b.date-a.date); // newest first
+  list.sort((a,b)=>b.date-a.date);
   newsContainer.innerHTML='';
   if(list.length===0){ newsContainer.innerHTML='<p style="text-align:center;">No articles found.</p>'; return; }
   const fragment=document.createDocumentFragment();
@@ -131,14 +141,18 @@ function applyFilters(){
   renderArticles(filtered);
 }
 
-// Load all feeds
+// Load all feeds and preserve selected source
 async function loadAllFeeds(){
+  const selectedSource = sourceFilter.value;
   newsContainer.innerHTML='<p style="text-align:center;">Loading news...</p>';
-  const results=await Promise.all(FEEDS.map(f=>fetchFeed(f)));
-  articles=results.flat();
-  renderArticles(articles);
+  const results = await Promise.all(FEEDS.map(f => fetchFeed(f)));
+  articles = results.flat();
+  // preserve filter
+  sourceFilter.value = selectedSource;
+  applyFilters();
 }
 
+// Event listeners
 searchInput.addEventListener('input', debounce(applyFilters,300));
 sourceFilter.addEventListener('change', applyFilters);
 refreshBtn.addEventListener('click', loadAllFeeds);
