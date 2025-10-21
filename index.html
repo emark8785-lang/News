@@ -3,103 +3,33 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Fast News Aggregator</title>
+<title>Enhanced News Aggregator</title>
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    background: #f4f6fb;
-    color: #111;
-  }
-  header {
-    background: #1a1a1a;
-    color: white;
-    padding: 16px;
-    text-align: center;
-  }
-  header h1 {
-    margin: 0;
-  }
-  #controls {
-    margin: 16px;
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-  }
-  input[type="search"] {
-    padding: 8px;
-    width: 250px;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-  }
-  select, button {
-    padding: 8px;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-  }
-  main {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
-    padding: 16px;
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-  .article {
-    background: white;
-    border-radius: 8px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-  }
-  .article img {
-    width: 100%;
-    height: 160px;
-    object-fit: cover;
-  }
-  .article-content {
-    padding: 12px;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-  }
-  .article h2 {
-    font-size: 1rem;
-    margin: 0 0 8px 0;
-    flex-shrink: 0;
-  }
-  .article p {
-    font-size: 0.9rem;
-    flex: 1;
-    margin: 0 0 8px 0;
-  }
-  .article a {
-    align-self: flex-start;
-    text-decoration: none;
-    color: #1a73e8;
-    font-weight: bold;
-    font-size: 0.9rem;
-  }
-  .source {
-    font-size: 0.75rem;
-    color: #555;
-    margin-top: 4px;
-  }
+  body { font-family: Arial, sans-serif; margin: 0; background: #f4f6fb; color: #111; }
+  header { background: #1a1a1a; color: white; padding: 16px; text-align: center; }
+  header h1 { margin: 0; }
+  #controls { margin: 16px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  input[type="search"] { padding: 8px; width: 250px; border-radius: 6px; border: 1px solid #ccc; }
+  select, button { padding: 8px; border-radius: 6px; border: 1px solid #ccc; }
+  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; padding: 16px; max-width: 1200px; margin: 0 auto; }
+  .article { background: white; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+  .article img { width: 100%; height: 160px; object-fit: cover; }
+  .article-content { padding: 12px; flex: 1; display: flex; flex-direction: column; }
+  .article h2 { font-size: 1rem; margin: 0 0 8px 0; flex-shrink: 0; }
+  .article p { font-size: 0.9rem; flex: 1; margin: 0 0 8px 0; }
+  .article a { align-self: flex-start; text-decoration: none; color: #1a73e8; font-weight: bold; font-size: 0.9rem; }
+  .source { font-size: 0.75rem; color: #555; margin-top: 4px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Fast News Aggregator</h1>
+  <h1>Enhanced News Aggregator</h1>
 </header>
 
 <div id="controls">
   <input type="search" id="searchInput" placeholder="Search headlines...">
   <select id="sourceFilter">
     <option value="all">All sources</option>
-    <option value="BBC">BBC</option>
-    <option value="Reuters">Reuters</option>
-    <option value="NYTimes">NYTimes</option>
   </select>
   <button id="refreshBtn">Refresh</button>
 </div>
@@ -109,14 +39,17 @@
 </main>
 
 <script>
-// RSS feeds
 const FEEDS = [
   { id: 'BBC', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
   { id: 'Reuters', url: 'https://feeds.reuters.com/reuters/topNews' },
-  { id: 'NYTimes', url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml' }
+  { id: 'NYTimes', url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml' },
+  { id: 'CNN', url: 'http://rss.cnn.com/rss/edition.rss' },
+  { id: 'The Guardian', url: 'https://www.theguardian.com/world/rss' },
+  { id: 'Al Jazeera', url: 'https://www.aljazeera.com/xml/rss/all.xml' },
+  { id: 'Fox News', url: 'http://feeds.foxnews.com/foxnews/latest' }
 ];
 
-const proxy = 'https://corsproxy.io/?'; // faster CORS proxy
+const proxy = 'https://corsproxy.io/?';
 const newsContainer = document.getElementById('newsContainer');
 const searchInput = document.getElementById('searchInput');
 const sourceFilter = document.getElementById('sourceFilter');
@@ -124,7 +57,15 @@ const refreshBtn = document.getElementById('refreshBtn');
 
 let articles = [];
 
-// Debounce function for search
+// Populate the source dropdown
+FEEDS.forEach(f => {
+  const opt = document.createElement('option');
+  opt.value = f.id;
+  opt.textContent = f.id;
+  sourceFilter.appendChild(opt);
+});
+
+// Debounce function
 function debounce(fn, delay) {
   let timeout;
   return function(...args) {
@@ -133,7 +74,7 @@ function debounce(fn, delay) {
   };
 }
 
-// Fetch single feed
+// Fetch a feed and extract title, link, description, image
 async function fetchFeed(feed) {
   try {
     const res = await fetch(proxy + encodeURIComponent(feed.url));
@@ -142,12 +83,19 @@ async function fetchFeed(feed) {
     const xml = parser.parseFromString(text, "application/xml");
     const items = Array.from(xml.querySelectorAll('item')).map(item => {
       let img = null;
+      // Try enclosure
       const enclosure = item.querySelector('enclosure[url]');
       if(enclosure) img = enclosure.getAttribute('url');
       else {
-        const desc = item.querySelector('description')?.textContent || '';
-        const match = desc.match(/<img[^>]+src="([^">]+)"/i);
-        if(match) img = match[1];
+        // Try media:content
+        const media = item.getElementsByTagNameNS('*', 'content')[0];
+        if(media && media.getAttribute('url')) img = media.getAttribute('url');
+        else {
+          // Try first image in description
+          const desc = item.querySelector('description')?.textContent || '';
+          const match = desc.match(/<img[^>]+src="([^">]+)"/i);
+          if(match) img = match[1];
+        }
       }
       return {
         source: feed.id,
@@ -164,11 +112,11 @@ async function fetchFeed(feed) {
   }
 }
 
-// Render articles using DocumentFragment for speed
+// Render articles
 function renderArticles(list) {
   newsContainer.innerHTML = '';
-  if(list.length === 0) {
-    newsContainer.innerHTML = '<p style="text-align:center; grid-column: 1/-1;">No articles found.</p>';
+  if(list.length === 0){
+    newsContainer.innerHTML = '<p style="text-align:center;">No articles found.</p>';
     return;
   }
   const fragment = document.createDocumentFragment();
@@ -201,7 +149,7 @@ function applyFilters() {
 
 // Load all feeds in parallel
 async function loadAllFeeds() {
-  newsContainer.innerHTML = '<p style="text-align:center; grid-column: 1/-1;">Loading news...</p>';
+  newsContainer.innerHTML = '<p style="text-align:center;">Loading news...</p>';
   const results = await Promise.all(FEEDS.map(f => fetchFeed(f)));
   articles = results.flat();
   renderArticles(articles);
