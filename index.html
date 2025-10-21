@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Live News Aggregator</title>
+<title>Fast News Aggregator</title>
 <style>
   body {
     font-family: Arial, sans-serif;
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header>
-  <h1>Live News Aggregator</h1>
+  <h1>Fast News Aggregator</h1>
 </header>
 
 <div id="controls">
@@ -109,14 +109,14 @@
 </main>
 
 <script>
-// List of RSS feeds
+// RSS feeds
 const FEEDS = [
-  { id: 'BBC', url: 'http://feeds.bbci.co.uk/news/world/rss.xml' },
-  { id: 'Reuters', url: 'http://feeds.reuters.com/reuters/topNews' },
+  { id: 'BBC', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
+  { id: 'Reuters', url: 'https://feeds.reuters.com/reuters/topNews' },
   { id: 'NYTimes', url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml' }
 ];
 
-const proxy = 'https://api.allorigins.win/raw?url='; // public CORS proxy
+const proxy = 'https://corsproxy.io/?'; // faster CORS proxy
 const newsContainer = document.getElementById('newsContainer');
 const searchInput = document.getElementById('searchInput');
 const sourceFilter = document.getElementById('sourceFilter');
@@ -124,7 +124,16 @@ const refreshBtn = document.getElementById('refreshBtn');
 
 let articles = [];
 
-// Fetch a single feed
+// Debounce function for search
+function debounce(fn, delay) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+// Fetch single feed
 async function fetchFeed(feed) {
   try {
     const res = await fetch(proxy + encodeURIComponent(feed.url));
@@ -136,7 +145,8 @@ async function fetchFeed(feed) {
       const enclosure = item.querySelector('enclosure[url]');
       if(enclosure) img = enclosure.getAttribute('url');
       else {
-        const match = (item.querySelector('description')?.textContent || '').match(/<img[^>]+src="([^">]+)"/i);
+        const desc = item.querySelector('description')?.textContent || '';
+        const match = desc.match(/<img[^>]+src="([^">]+)"/i);
         if(match) img = match[1];
       }
       return {
@@ -145,27 +155,28 @@ async function fetchFeed(feed) {
         link: item.querySelector('link')?.textContent || '',
         description: (item.querySelector('description')?.textContent || '').replace(/<\/?[^>]+(>|$)/g, ''),
         image: img
-      }
+      };
     });
-    return items;
-  } catch (err) {
-    console.error('Error fetching feed:', feed.id, err);
+    return items.filter(a => a.title && a.link);
+  } catch(err) {
+    console.error('Error fetching', feed.id, err);
     return [];
   }
 }
 
-// Render articles
+// Render articles using DocumentFragment for speed
 function renderArticles(list) {
   newsContainer.innerHTML = '';
   if(list.length === 0) {
     newsContainer.innerHTML = '<p style="text-align:center; grid-column: 1/-1;">No articles found.</p>';
     return;
   }
+  const fragment = document.createDocumentFragment();
   list.forEach(a => {
     const div = document.createElement('div');
     div.className = 'article';
     div.innerHTML = `
-      ${a.image ? `<img src="${a.image}" alt="${a.title}">` : ''}
+      ${a.image ? `<img src="${a.image}" alt="${a.title}" loading="lazy">` : ''}
       <div class="article-content">
         <h2>${a.title}</h2>
         <p>${a.description.length > 150 ? a.description.slice(0,150)+'…' : a.description}</p>
@@ -173,8 +184,9 @@ function renderArticles(list) {
         <div class="source">${a.source}</div>
       </div>
     `;
-    newsContainer.appendChild(div);
+    fragment.appendChild(div);
   });
+  newsContainer.appendChild(fragment);
 }
 
 // Filter articles
@@ -187,7 +199,7 @@ function applyFilters() {
   renderArticles(filtered);
 }
 
-// Load all feeds
+// Load all feeds in parallel
 async function loadAllFeeds() {
   newsContainer.innerHTML = '<p style="text-align:center; grid-column: 1/-1;">Loading news...</p>';
   const results = await Promise.all(FEEDS.map(f => fetchFeed(f)));
@@ -195,13 +207,13 @@ async function loadAllFeeds() {
   renderArticles(articles);
 }
 
-searchInput.addEventListener('input', applyFilters);
+// Event listeners
+searchInput.addEventListener('input', debounce(applyFilters, 300));
 sourceFilter.addEventListener('change', applyFilters);
 refreshBtn.addEventListener('click', loadAllFeeds);
 
 // Initial load
 loadAllFeeds();
-
 </script>
 </body>
 </html>
