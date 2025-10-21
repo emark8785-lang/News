@@ -1,30 +1,207 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Daily News</title>
-  <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live News Aggregator</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    background: #f4f6fb;
+    color: #111;
+  }
+  header {
+    background: #1a1a1a;
+    color: white;
+    padding: 16px;
+    text-align: center;
+  }
+  header h1 {
+    margin: 0;
+  }
+  #controls {
+    margin: 16px;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+  }
+  input[type="search"] {
+    padding: 8px;
+    width: 250px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+  }
+  select, button {
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+  }
+  main {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 16px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .article {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  }
+  .article img {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+  }
+  .article-content {
+    padding: 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .article h2 {
+    font-size: 1rem;
+    margin: 0 0 8px 0;
+    flex-shrink: 0;
+  }
+  .article p {
+    font-size: 0.9rem;
+    flex: 1;
+    margin: 0 0 8px 0;
+  }
+  .article a {
+    align-self: flex-start;
+    text-decoration: none;
+    color: #1a73e8;
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+  .source {
+    font-size: 0.75rem;
+    color: #555;
+    margin-top: 4px;
+  }
+</style>
 </head>
 <body>
-  <header>
-    <h1>Daily News</h1>
-    <nav>
-      <a href="#">Home</a>
-      <a href="#">World</a>
-      <a href="#">Technology</a>
-      <a href="#">Sports</a>
-    </nav>
-  </header>
+<header>
+  <h1>Live News Aggregator</h1>
+</header>
 
-  <main id="news-container">
-    <!-- News articles will be loaded here -->
-  </main>
+<div id="controls">
+  <input type="search" id="searchInput" placeholder="Search headlines...">
+  <select id="sourceFilter">
+    <option value="all">All sources</option>
+    <option value="BBC">BBC</option>
+    <option value="Reuters">Reuters</option>
+    <option value="NYTimes">NYTimes</option>
+  </select>
+  <button id="refreshBtn">Refresh</button>
+</div>
 
-  <footer>
-    <p>© 2025 Daily News. All rights reserved.</p>
-  </footer>
+<main id="newsContainer">
+  <p style="text-align:center; grid-column: 1/-1;">Loading news...</p>
+</main>
 
-  <script src="script.js"></script>
+<script>
+// List of RSS feeds
+const FEEDS = [
+  { id: 'BBC', url: 'http://feeds.bbci.co.uk/news/world/rss.xml' },
+  { id: 'Reuters', url: 'http://feeds.reuters.com/reuters/topNews' },
+  { id: 'NYTimes', url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml' }
+];
+
+const proxy = 'https://api.allorigins.win/raw?url='; // public CORS proxy
+const newsContainer = document.getElementById('newsContainer');
+const searchInput = document.getElementById('searchInput');
+const sourceFilter = document.getElementById('sourceFilter');
+const refreshBtn = document.getElementById('refreshBtn');
+
+let articles = [];
+
+// Fetch a single feed
+async function fetchFeed(feed) {
+  try {
+    const res = await fetch(proxy + encodeURIComponent(feed.url));
+    const text = await res.text();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, "application/xml");
+    const items = Array.from(xml.querySelectorAll('item')).map(item => {
+      let img = null;
+      const enclosure = item.querySelector('enclosure[url]');
+      if(enclosure) img = enclosure.getAttribute('url');
+      else {
+        const match = (item.querySelector('description')?.textContent || '').match(/<img[^>]+src="([^">]+)"/i);
+        if(match) img = match[1];
+      }
+      return {
+        source: feed.id,
+        title: item.querySelector('title')?.textContent || '',
+        link: item.querySelector('link')?.textContent || '',
+        description: (item.querySelector('description')?.textContent || '').replace(/<\/?[^>]+(>|$)/g, ''),
+        image: img
+      }
+    });
+    return items;
+  } catch (err) {
+    console.error('Error fetching feed:', feed.id, err);
+    return [];
+  }
+}
+
+// Render articles
+function renderArticles(list) {
+  newsContainer.innerHTML = '';
+  if(list.length === 0) {
+    newsContainer.innerHTML = '<p style="text-align:center; grid-column: 1/-1;">No articles found.</p>';
+    return;
+  }
+  list.forEach(a => {
+    const div = document.createElement('div');
+    div.className = 'article';
+    div.innerHTML = `
+      ${a.image ? `<img src="${a.image}" alt="${a.title}">` : ''}
+      <div class="article-content">
+        <h2>${a.title}</h2>
+        <p>${a.description.length > 150 ? a.description.slice(0,150)+'…' : a.description}</p>
+        <a href="${a.link}" target="_blank">Read more</a>
+        <div class="source">${a.source}</div>
+      </div>
+    `;
+    newsContainer.appendChild(div);
+  });
+}
+
+// Filter articles
+function applyFilters() {
+  const q = searchInput.value.toLowerCase();
+  const src = sourceFilter.value;
+  let filtered = articles;
+  if(src !== 'all') filtered = filtered.filter(a => a.source === src);
+  if(q) filtered = filtered.filter(a => a.title.toLowerCase().includes(q) || a.description.toLowerCase().includes(q));
+  renderArticles(filtered);
+}
+
+// Load all feeds
+async function loadAllFeeds() {
+  newsContainer.innerHTML = '<p style="text-align:center; grid-column: 1/-1;">Loading news...</p>';
+  const results = await Promise.all(FEEDS.map(f => fetchFeed(f)));
+  articles = results.flat();
+  renderArticles(articles);
+}
+
+searchInput.addEventListener('input', applyFilters);
+sourceFilter.addEventListener('change', applyFilters);
+refreshBtn.addEventListener('click', loadAllFeeds);
+
+// Initial load
+loadAllFeeds();
+
+</script>
 </body>
 </html>
